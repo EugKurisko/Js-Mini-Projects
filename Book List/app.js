@@ -34,6 +34,7 @@ class UI {
         if (row.className == 'delete') {
             row.parentNode.parentNode.remove();
             Storage.removeBook(row.parentNode.previousElementSibling.textContent);
+            addMessage('Book deleted', 'success');
         }
     }
 }
@@ -128,5 +129,4 @@ function removeFromList(e) {
     e.preventDefault();
     let ui = new UI();
     ui.deleteBook(e.target);
-    addMessage('Book deleted', 'success');
 }
