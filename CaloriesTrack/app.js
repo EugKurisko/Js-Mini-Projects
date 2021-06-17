@@ -30,6 +30,15 @@ const StorageCtrl = (() => {
             });
             localStorage.setItem('items', JSON.stringify(items));
         },
+        deleteItemFromStorage: function (id) {
+            let items = JSON.parse(localStorage.getItem('items'));
+            items.forEach((item, index) => {
+                if (item.id === id) {
+                    items.splice(index, 1);
+                }
+            });
+            localStorage.setItem('items', JSON.stringify(items));
+        },
         clearStorage: function () {
             localStorage.removeItem('items');
         }
@@ -75,7 +84,6 @@ const ItemCntrl = (() => {
             calories = parseInt(calories);
             const newItem = new Item(id, name, calories);
             data.items.push(newItem);
-            console.log(data.items);
             return newItem;
         },
         updateItem: function (name, calories) {
@@ -88,13 +96,24 @@ const ItemCntrl = (() => {
             });
             return data.currentItem;
         },
+        deleteItem: function (id) {
+            ids = data.items.map(item => {
+                if (item.id !== data.currentItem.id) {
+                    return item.id;
+                }
+            });
+            const index = ids.indexOf(id);
+            data.items.splice(index, 1);
+        },
+        deleteAllItems: function () {
+            data.items = [];
+        },
         setCurrentItem: function (id) {
             data.items.forEach(item => {
                 if (item.id === id) {
                     data.currentItem = item;
                 }
             });
-            console.log(data.currentItem);
         }
     }
 })();
@@ -171,7 +190,6 @@ const UICntrl = (() => {
                 insertAdjacentElement('beforeend', li);
         },
         updateListItem: function (item) {
-            console.log(item);
             listItems = document.querySelectorAll(UISelectors.listItems);
             listItems = Array.from(listItems);
             listItems.forEach(listItem => {
@@ -184,6 +202,14 @@ const UICntrl = (() => {
                     </a>`;
                 }
             });
+            UICntrl.clearInput();
+            UICntrl.editPanelDisplay('none');
+        },
+        deleteListItem: function (id) {
+            let listItem = document.querySelector(`#item-${id}`);
+            listItem.remove();
+            UICntrl.clearInput();
+            UICntrl.editPanelDisplay('none');
         },
         clearInput: function () {
             UICntrl.getInputName().value = '';
@@ -191,7 +217,6 @@ const UICntrl = (() => {
         },
         clearAllItems: function () {
             let items = document.querySelectorAll(UISelectors.listItems);
-            console.log(items);
             items = Array.from(items);
             items.forEach(item => {
                 item.remove();
@@ -205,6 +230,11 @@ const UICntrl = (() => {
 //app controller
 const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
     //load all events
+
+    const setCalories = function () {
+        totalCalories = ItemCntrl.getCalories();
+        UICntrl.displayCalories(totalCalories);
+    }
     const loadEvents = function () {
         const UISelectors = UICntrl.getSelectors();
 
@@ -212,13 +242,19 @@ const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
             itemAddSubmit);
 
         document.querySelector(UISelectors.itemList).addEventListener('click',
-            ItemEditClick);
+            itemEditClick);
 
         document.querySelector(UISelectors.updateBtn).addEventListener('click',
-            ItemUpdateSubmit);
+            itemUpdateSubmit);
+
+        document.querySelector(UISelectors.deleteBtn).addEventListener('click',
+            itemDeleteSubmit);
 
         document.querySelector(UISelectors.clearbtn).addEventListener('click',
             itemClearAll);
+
+        document.querySelector(UISelectors.backBtn).addEventListener('click',
+            back);
 
     }
 
@@ -228,15 +264,14 @@ const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
         const itemCalories = UICntrl.getInputCalories().value;
         if (itemName !== '' && itemCalories !== '') {
             const newItem = ItemCntrl.addItem(itemName, itemCalories);
-            totalCalories = ItemCntrl.getCalories();
-            UICntrl.displayCalories(totalCalories);
+            setCalories();
             UICntrl.addListItem(newItem);
             UICntrl.clearInput();
             StorageCtrl.storeItem(newItem);
         }
     }
 
-    const ItemEditClick = function (e) {
+    const itemEditClick = function (e) {
         if (e.target.classList.contains('edit-item')) {
             UICntrl.editPanelDisplay('inline');
             //take id of clicked element
@@ -248,26 +283,39 @@ const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
         }
     }
 
-    const ItemUpdateSubmit = function (e) {
+    const itemUpdateSubmit = function (e) {
         e.preventDefault();
         const itemName = UICntrl.getInputName().value;
         const itemCalories = UICntrl.getInputCalories().value;
         if (itemName !== '' && itemCalories !== '') {
             const itemToUpdate = ItemCntrl.updateItem(itemName, itemCalories);
             UICntrl.updateListItem(itemToUpdate);
-            totalCalories = ItemCntrl.getCalories();
-            UICntrl.displayCalories(totalCalories);
-            UICntrl.clearInput();
+            setCalories();
             StorageCtrl.updateStoredItem(itemToUpdate);
-            UICntrl.editPanelDisplay('none');
         }
+    }
+
+    const itemDeleteSubmit = function (e) {
+        e.preventDefault();
+        const currentItem = ItemCntrl.getCurrentItem();
+        ItemCntrl.deleteItem(currentItem.id);
+        UICntrl.deleteListItem(currentItem.id);
+        setCalories();
+        StorageCtrl.deleteItemFromStorage(currentItem.id);
     }
 
     const itemClearAll = function (e) {
         e.preventDefault();
-        console.log(1);
+        ItemCntrl.deleteAllItems();
         UICntrl.clearAllItems();
         StorageCtrl.clearStorage();
+        setCalories();
+    }
+
+    const back = function (e) {
+        e.preventDefault();
+        UICntrl.editPanelDisplay('none');
+        UICntrl.clearInput();
     }
 
     return {
