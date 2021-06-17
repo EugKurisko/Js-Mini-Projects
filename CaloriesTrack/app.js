@@ -21,6 +21,15 @@ const StorageCtrl = (() => {
             }
             return items;
         },
+        updateStoredItem: function (updatedItem) {
+            let items = JSON.parse(localStorage.getItem('items'));
+            items.forEach((item, index) => {
+                if (item.id === updatedItem.id) {
+                    items.splice(index, 1, updatedItem);
+                }
+            });
+            localStorage.setItem('items', JSON.stringify(items));
+        },
         clearStorage: function () {
             localStorage.removeItem('items');
         }
@@ -46,10 +55,20 @@ const ItemCntrl = (() => {
         getAllItems: function () {
             return data.items;
         },
+        getCurrentItem: function () {
+            return data.currentItem;
+        },
+        getCalories: function () {
+            let total = 0;
+            data.items.forEach(item => {
+                total += item.calories;
+            });
+            return total;
+        },
         addItem: function (name, calories) {
             let id;
             if (data.items.length > 0) {
-                id = data.items[data.items.length - 1] + 1;
+                id = data.items[data.items.length - 1].id + 1;
             } else {
                 id = 0;
             }
@@ -58,6 +77,24 @@ const ItemCntrl = (() => {
             data.items.push(newItem);
             console.log(data.items);
             return newItem;
+        },
+        updateItem: function (name, calories) {
+            calories = parseInt(calories);
+            data.items.forEach(item => {
+                if (item.id === data.currentItem.id) {
+                    item.name = name;
+                    item.calories = calories;
+                }
+            });
+            return data.currentItem;
+        },
+        setCurrentItem: function (id) {
+            data.items.forEach(item => {
+                if (item.id === id) {
+                    data.currentItem = item;
+                }
+            });
+            console.log(data.currentItem);
         }
     }
 })();
@@ -69,6 +106,7 @@ const UICntrl = (() => {
     const UISelectors = {
         inputName: '#item-name',
         inputCalories: '#item-calories',
+        totalCalories: '.total-calories',
         itemList: '#item-list',
         listItems: '#item-list li',
         addBtn: '.add-btn',
@@ -88,10 +126,19 @@ const UICntrl = (() => {
         getInputCalories: function () {
             return document.querySelector(UISelectors.inputCalories);
         },
-        hideEditPanel: function () {
-            document.querySelector(UISelectors.updateBtn).style.display = 'none';
-            document.querySelector(UISelectors.deleteBtn).style.display = 'none';
-            document.querySelector(UISelectors.backBtn).style.display = 'none';
+        displayCalories: function (calories) {
+            document.querySelector(UISelectors.totalCalories).innerHTML = calories;
+        },
+        editPanelDisplay: function (display) {
+            if (display === 'none') {
+                document.querySelector(UISelectors.addBtn).style.display = 'block';
+            } else {
+                document.querySelector(UISelectors.addBtn).style.display = 'none';
+            }
+            document.querySelector(UISelectors.updateBtn).style.display = display;
+            document.querySelector(UISelectors.deleteBtn).style.display = display;
+            document.querySelector(UISelectors.backBtn).style.display = display;
+
         },
         hideList: function () {
             document.querySelector(UISelectors.itemList).style.display = 'none';
@@ -104,6 +151,10 @@ const UICntrl = (() => {
                 UICntrl.addListItem(item);
             });
         },
+        setItemToForm: function () {
+            UICntrl.getInputName().value = ItemCntrl.getCurrentItem().name;
+            UICntrl.getInputCalories().value = ItemCntrl.getCurrentItem().calories;
+        },
         addListItem: function (item) {
             UICntrl.showList();
             document.querySelector(UISelectors.itemList);
@@ -112,10 +163,27 @@ const UICntrl = (() => {
             li.setAttribute('id', `item-${item.id}`);
             li.innerHTML = `
                 <strong>${item.name}: </strong><em>${item.calories} Calories</em>
-                    <a href="#" class="secondary-content"></a>
+                <a href="#" class="secondary-content">
+                    <i class="edit-item fa fa-pencil"></i>
+                </a>
             `;
             document.querySelector(UISelectors.itemList).
                 insertAdjacentElement('beforeend', li);
+        },
+        updateListItem: function (item) {
+            console.log(item);
+            listItems = document.querySelectorAll(UISelectors.listItems);
+            listItems = Array.from(listItems);
+            listItems.forEach(listItem => {
+                if (listItem.getAttribute('id') === `item-${item.id}`) {
+                    document.querySelector(`#item-${item.id}`).innerHTML = `
+                    <strong>${item.name}: </strong>
+                    <em>${item.calories} Calories</em>
+                    <a href="#" class="secondary-content">
+                        <i class="edit-item fa fa-pencil"></i>
+                    </a>`;
+                }
+            });
         },
         clearInput: function () {
             UICntrl.getInputName().value = '';
@@ -143,8 +211,15 @@ const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
         document.querySelector(UISelectors.addBtn).addEventListener('click',
             itemAddSubmit);
 
+        document.querySelector(UISelectors.itemList).addEventListener('click',
+            ItemEditClick);
+
+        document.querySelector(UISelectors.updateBtn).addEventListener('click',
+            ItemUpdateSubmit);
+
         document.querySelector(UISelectors.clearbtn).addEventListener('click',
             itemClearAll);
+
     }
 
     const itemAddSubmit = function (e) {
@@ -153,9 +228,38 @@ const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
         const itemCalories = UICntrl.getInputCalories().value;
         if (itemName !== '' && itemCalories !== '') {
             const newItem = ItemCntrl.addItem(itemName, itemCalories);
+            totalCalories = ItemCntrl.getCalories();
+            UICntrl.displayCalories(totalCalories);
             UICntrl.addListItem(newItem);
             UICntrl.clearInput();
             StorageCtrl.storeItem(newItem);
+        }
+    }
+
+    const ItemEditClick = function (e) {
+        if (e.target.classList.contains('edit-item')) {
+            UICntrl.editPanelDisplay('inline');
+            //take id of clicked element
+            const listId = e.target.parentNode.parentNode.id;
+            const listIdArr = listId.split('-');
+            const id = parseInt(listIdArr[1]);
+            ItemCntrl.setCurrentItem(id);
+            UICntrl.setItemToForm();
+        }
+    }
+
+    const ItemUpdateSubmit = function (e) {
+        e.preventDefault();
+        const itemName = UICntrl.getInputName().value;
+        const itemCalories = UICntrl.getInputCalories().value;
+        if (itemName !== '' && itemCalories !== '') {
+            const itemToUpdate = ItemCntrl.updateItem(itemName, itemCalories);
+            UICntrl.updateListItem(itemToUpdate);
+            totalCalories = ItemCntrl.getCalories();
+            UICntrl.displayCalories(totalCalories);
+            UICntrl.clearInput();
+            StorageCtrl.updateStoredItem(itemToUpdate);
+            UICntrl.editPanelDisplay('none');
         }
     }
 
@@ -170,12 +274,13 @@ const AppCntr = ((StorageCtrl, ItemCntrl, UICntrl) => {
         init: function () {
             loadEvents();
             UICntrl.hideList();
-            UICntrl.hideEditPanel();
+            UICntrl.editPanelDisplay('none');
             allItems = ItemCntrl.getAllItems();
             if (allItems) {
+                totalCalories = ItemCntrl.getCalories();
+                UICntrl.displayCalories(totalCalories);
                 UICntrl.populateItemList(allItems);
             }
-
         }
     }
 })(StorageCtrl, ItemCntrl, UICntrl);
